@@ -1,0 +1,29 @@
+<Project>
+  <!-- PaintNetPath vem do deploy.ps1 (lido do .env). Fallback: instalação padrão. -->
+  <PropertyGroup>
+    <PaintNetPath Condition="'$(PaintNetPath)' == ''">C:\Program Files\Paint.NET</PaintNetPath>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <!-- Referências à API do Paint.NET (não copiadas para a saída) -->
+  <ItemGroup>
+    <Reference Include="$(PaintNetPath)\PaintDotNet.Base.dll" Private="false" />
+    <Reference Include="$(PaintNetPath)\PaintDotNet.Core.dll" Private="false" />
+    <Reference Include="$(PaintNetPath)\PaintDotNet.Effects.Core.dll" Private="false" />
+    <Reference Include="$(PaintNetPath)\PaintDotNet.Fundamentals.dll" Private="false" />
+    <Reference Include="$(PaintNetPath)\PaintDotNet.ObjectModel.dll" Private="false" />
+    <Reference Include="$(PaintNetPath)\PaintDotNet.Primitives.dll" Private="false" />
+    <Reference Include="$(PaintNetPath)\PaintDotNet.PropertySystem.dll" Private="false" />
+    <Reference Include="$(PaintNetPath)\PaintDotNet.Windows.dll" Private="false" />
+    <Reference Include="$(PaintNetPath)\PaintDotNet.Windows.Core.dll" Private="false" />
+    <Reference Include="$(PaintNetPath)\PaintDotNet.Collections.dll" Private="false" />
+    <Reference Include="$(PaintNetPath)\PaintDotNet.ComponentModel.dll" Private="false" />
+    <Reference Include="$(PaintNetPath)\PaintDotNet.Runtime.dll" Private="false" />
+  </ItemGroup>
+</Project>
