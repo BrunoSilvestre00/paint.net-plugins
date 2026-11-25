@@ -5,4 +5,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
   </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="icon.png" LogicalName="icon.png" />
+  </ItemGroup>
 </Project>

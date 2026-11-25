@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using PaintDotNet;
 using PaintDotNet.Effects;
 using PaintDotNet.IndirectUI;
@@ -35,8 +36,6 @@ public sealed class ContourErosionEffect : PropertyBasedBitmapEffect
     // Submenu onde o efeito aparece em Efeitos. Nome novo = cria submenu.
     private const string SubMenu = "Objeto";
 
-    private const float MaxDepth = 1000f;
-
     private enum PropertyNames { Amount, Mode, Smoothing }
     private enum ErosionMode { Dry, Blur }
 
@@ -44,11 +43,20 @@ public sealed class ContourErosionEffect : PropertyBasedBitmapEffect
     private float[]? smoothed;         // SDF suavizado, usado na renderização
     private int smoothedRadius = -1;   // raio de box blur do 'smoothed' atual
     private int width, height;
+    private ulong sourceHash;          // hash do alfa da imagem a que o SDF em cache corresponde
     private readonly object smoothLock = new object();
 
     public ContourErosionEffect()
-        : base("Erosão de Contorno", SubMenu, BitmapEffectOptions.Create() with { IsConfigurable = true })
+        : base("Erosão de Contorno", LoadIcon(), SubMenu, BitmapEffectOptions.Create() with { IsConfigurable = true })
     {
+    }
+
+    /// <summary>Ícone do menu, embutido na DLL (src\ContourErosion\icon.png).</summary>
+    private static System.Drawing.Image LoadIcon()
+    {
+        using Stream stream = typeof(ContourErosionEffect).Assembly.GetManifestResourceStream("icon.png")!;
+        using var raw = new System.Drawing.Bitmap(stream);
+        return new System.Drawing.Bitmap(raw); // cópia: não depende do stream aberto
     }
 
     protected override PropertyCollection OnCreatePropertyCollection()
@@ -76,17 +84,25 @@ public sealed class ContourErosionEffect : PropertyBasedBitmapEffect
 
     protected override void OnInitializeRenderInfo(IBitmapEffectRenderInfo renderInfo)
     {
-        // O SDF não depende dos controles: calcula uma vez por imagem.
-        if (signedDistance == null)
+        // O SDF não depende dos controles, só da imagem de origem. O Paint.NET reutiliza a mesma
+        // instância do efeito entre execuções (outra imagem, ou a mesma já editada), então o cache
+        // é validado por tamanho + hash do alfa a cada render, e só refeito se a imagem mudou.
+        using IEffectInputBitmap<ColorBgra32> source = Environment.GetSourceBitmapBgra32();
+        SizeInt32 size = source.Size;
+        using IBitmapLock<ColorBgra32> src = source.Lock(new RectInt32(0, 0, size.Width, size.Height));
+        float[] alpha = ReadAlpha(src, size.Width, size.Height, out ulong hash);
+
+        lock (smoothLock)
         {
-            using IEffectInputBitmap<ColorBgra32> source = Environment.GetSourceBitmapBgra32();
-            SizeInt32 size = source.Size;
-            using IBitmapLock<ColorBgra32> src = source.Lock(new RectInt32(0, 0, size.Width, size.Height));
-            width = size.Width;
-            height = size.Height;
-            signedDistance = BuildSignedDistance(src, width, height);
-            smoothed = null;
-            smoothedRadius = -1;
+            if (signedDistance == null || size.Width != width || size.Height != height || hash != sourceHash)
+            {
+                width = size.Width;
+                height = size.Height;
+                sourceHash = hash;
+                signedDistance = SdfMath.BuildSignedDistance(alpha, width, height);
+                smoothed = null;
+                smoothedRadius = -1;
+            }
         }
 
         base.OnInitializeRenderInfo(renderInfo);
@@ -104,7 +120,7 @@ public sealed class ContourErosionEffect : PropertyBasedBitmapEffect
             {
                 smoothed = radius == 0
                     ? signedDistance!
-                    : GaussianApprox(signedDistance!, width, height, radius);
+                    : SdfMath.GaussianApprox(signedDistance!, width, height, radius);
                 smoothedRadius = radius;
             }
             return smoothed;
@@ -174,130 +190,22 @@ public sealed class ContourErosionEffect : PropertyBasedBitmapEffect
         return Math.Max(1, (int)MathF.Round((w - 1f) / 2f));
     }
 
-    // ---- SDF com precisão de subpixel a partir do alfa antialiased ----
-
-    private static unsafe float[] BuildSignedDistance(IBitmapLock<ColorBgra32> src, int w, int h)
+    /// <summary>Lê o alfa (0..1) e devolve também um hash FNV-1a 64 bits dele, para detectar mudança de imagem.</summary>
+    private static unsafe float[] ReadAlpha(IBitmapLock<ColorBgra32> src, int w, int h, out ulong hash)
     {
-        const float Inf = 1e20f;
-        int n = w * h;
-        var alpha = new float[n];
+        var alpha = new float[w * h];
+        ulong hv = 14695981039346656037UL;
         for (int y = 0; y < h; y++)
         {
             ColorBgra32* row = (ColorBgra32*)((byte*)src.Buffer + (long)y * src.BufferStride);
-            for (int x = 0; x < w; x++) alpha[y * w + x] = row[x].A / 255f;
-        }
-
-        // Cada pixel parcial (0 < a < 1) é uma semente a uma distância 'a' (dentro)
-        // ou '1 - a' (fora) do contorno; pixels totalmente opacos/transparentes são infinitos
-        // para o lado oposto. Isso localiza o contorno com precisão de subpixel.
-        var inner = new float[n]; // distância até o exterior
-        var outer = new float[n]; // distância até o interior
-        for (int i = 0; i < n; i++)
-        {
-            float a = alpha[i];
-            inner[i] = a >= 1f ? Inf : a * a;
-            outer[i] = a <= 0f ? Inf : (1f - a) * (1f - a);
-        }
-
-        DistanceTransform2D(inner, w, h);
-        DistanceTransform2D(outer, w, h);
-
-        var sdf = new float[n];
-        for (int i = 0; i < n; i++)
-        {
-            // Dentro: profundidade = D - 0.5. Fora: valor negativo equivalente. Contínuo em a = 0.5.
-            sdf[i] = alpha[i] > 0.5f
-                ? Math.Min(inner[i], MaxDepth) - 0.5f
-                : -(Math.Min(outer[i], MaxDepth) - 0.5f);
-        }
-        return sdf;
-    }
-
-    /// <summary>Transformada de distância euclidiana O(N) (Felzenszwalb); entra d² semente, sai distância.</summary>
-    private static void DistanceTransform2D(float[] f, int w, int h)
-    {
-        int max = Math.Max(w, h);
-        var col = new float[max];
-        var tmp = new float[max];
-        var v = new int[max];
-        var z = new float[max + 1];
-
-        for (int x = 0; x < w; x++)
-        {
-            for (int y = 0; y < h; y++) col[y] = f[y * w + x];
-            Transform1D(col, tmp, v, z, h);
-            for (int y = 0; y < h; y++) f[y * w + x] = tmp[y];
-        }
-        for (int y = 0; y < h; y++)
-        {
-            Array.Copy(f, y * w, col, 0, w);
-            Transform1D(col, tmp, v, z, w);
-            for (int x = 0; x < w; x++) f[y * w + x] = MathF.Sqrt(tmp[x]);
-        }
-    }
-
-    private static void Transform1D(float[] src, float[] dst, int[] v, float[] z, int n)
-    {
-        int k = 0;
-        v[0] = 0;
-        z[0] = float.NegativeInfinity;
-        z[1] = float.PositiveInfinity;
-        for (int q = 1; q < n; q++)
-        {
-            float s;
-            while (true)
+            for (int x = 0; x < w; x++)
             {
-                int p = v[k];
-                s = ((src[q] + (float)q * q) - (src[p] + (float)p * p)) / (2f * q - 2f * p);
-                if (s <= z[k] && k > 0) { k--; continue; }
-                break;
-            }
-            k++;
-            v[k] = q;
-            z[k] = s;
-            z[k + 1] = float.PositiveInfinity;
-        }
-        k = 0;
-        for (int q = 0; q < n; q++)
-        {
-            while (z[k + 1] < q) k++;
-            float dq = q - v[k];
-            dst[q] = dq * dq + src[v[k]];
-        }
-    }
-
-    // ---- Suavização: gaussiana aproximada por 3 passes de box blur separável ----
-
-    private static float[] GaussianApprox(float[] src, int w, int h, int r)
-    {
-        var a = (float[])src.Clone();
-        var b = new float[a.Length];
-        for (int pass = 0; pass < 3; pass++)
-        {
-            BoxBlur(a, b, w, h, r, horizontal: true);
-            BoxBlur(b, a, w, h, r, horizontal: false);
-        }
-        return a;
-    }
-
-    private static void BoxBlur(float[] src, float[] dst, int w, int h, int r, bool horizontal)
-    {
-        int lines = horizontal ? h : w;
-        int len = horizontal ? w : h;
-        int stride = horizontal ? 1 : w;
-        float inv = 1f / (2 * r + 1);
-
-        for (int line = 0; line < lines; line++)
-        {
-            int start = horizontal ? line * w : line;
-            double sum = 0;
-            for (int i = -r; i <= r; i++) sum += src[start + Math.Clamp(i, 0, len - 1) * stride];
-            for (int i = 0; i < len; i++)
-            {
-                dst[start + i * stride] = (float)(sum * inv);
-                sum += src[start + Math.Min(i + r + 1, len - 1) * stride]
-                     - src[start + Math.Max(i - r, 0) * stride];
+                byte a = row[x].A;
+                alpha[y * w + x] = a / 255f;
+                hv = (hv ^ a) * 1099511628211UL;
             }
         }
+        hash = hv;
+        return alpha;
     }
 }
