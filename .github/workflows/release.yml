@@ -1,0 +1,41 @@
+name: Release das DLLs
+
+# Roda quando algo muda na pasta dlls/ da main (ou manualmente).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dlls/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # necessário para criar a release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Montar pasta Effects e zip
+        run: |
+          shopt -s nullglob
+          dlls=(dlls/*.dll)
+          if [ ${#dlls[@]} -eq 0 ]; then
+            echo "Nenhuma DLL em dlls/"; exit 1
+          fi
+          mkdir -p Effects
+          cp "${dlls[@]}" Effects/
+          zip -r PaintNET-Plugins.zip Effects
+          unzip -l PaintNET-Plugins.zip
+
+      - name: Criar release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ github.run_number }}"
+          gh release create "$TAG" PaintNET-Plugins.zip \
+            --title "Plugins $TAG" \
+            --notes "DLLs compiladas (commit ${GITHUB_SHA::7}).
+
+          **Instalação:** extraia o zip e copie o conteúdo da pasta \`Effects\` para \`C:\Program Files\Paint.NET\Effects\` (precisa de administrador). Se o Windows bloquear as DLLs, clique com o botão direito → Propriedades → Desbloquear. Reinicie o Paint.NET."
