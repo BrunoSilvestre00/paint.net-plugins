@@ -7,9 +7,10 @@ Plugins de efeito para o [Paint.NET](https://www.getpaint.net/) 5.x (.NET 11).
 | Plugin | Nome em inglês | Menu | O que faz |
 |---|---|---|---|
 | **Erosão de Contorno** | **Contour Erosion** | Efeitos → Objeto (*Effects → Object*) | Recua o contorno de uma forma N pixels para dentro (erosão morfológica do canal alfa), com borda seca ou com blur. |
-| **Inclinação** | **Skew** | Efeitos → Distorcer (*Effects → Distort*) | Inclina (cisalhamento/skew) o conteúdo da seleção com uma roleta de ângulo, na horizontal ou na vertical. |
+| **Inclinação** | **Skew** | Efeitos → Distorção (*Effects → Distort*) | Inclina (cisalhamento/skew) o conteúdo da seleção com uma roleta de ângulo, na horizontal ou na vertical. |
+| **Rotação** | **Rotate** | Efeitos → Distorção (*Effects → Distort*) | Rotaciona o conteúdo da seleção com uma roleta de ângulo, em torno do centro do objeto ou da seleção. |
 
-> The plugins are named in Portuguese inside Paint.NET; the English names above are for reference (and match the DLL names: `ContourErosion.dll`, `Skew.dll`).
+> The plugins are named in Portuguese inside Paint.NET; the English names above are for reference (and match the DLL names: `ContourErosion.dll`, `Skew.dll`, `Rotate.dll`).
 
 ### Erosão de Contorno (Contour Erosion)
 
@@ -25,6 +26,12 @@ Funciona sobre a transparência da camada (alfa): precisa haver uma forma com fu
 - **Eixo**: *Horizontal* (bordas verticais inclinam) ou *Vertical* (bordas horizontais inclinam).
 - A inclinação é em torno do centro da seleção, com interpolação bilinear em alfa pré-multiplicado.
 - O Paint.NET só deixa um efeito escrever dentro da seleção: o que sairia dela é cortado. Selecione uma área maior que a imagem para ter folga.
+
+### Rotação (Rotate)
+
+- **Ângulo de rotação**: roleta de -180° a 180°. Positivo gira no sentido anti-horário.
+- **Pivô**: *Centro do objeto* (caixa dos pixels visíveis, bom para sprites com margem transparente) ou *Centro da seleção*.
+- Mesma limitação da Inclinação: o que sair da seleção é cortado, então selecione uma área maior que a imagem.
 
 ## Instalação (usar o plugin)
 

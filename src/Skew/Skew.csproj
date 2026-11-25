@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="icon.png" LogicalName="icon.png" />
+    <Compile Include="..\Shared\Shared.cs" Link="Shared.cs" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Rotate</AssemblyName>
+    <RootNamespace>Rotate</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="icon.png" LogicalName="icon.png" />
+    <Compile Include="..\Shared\Shared.cs" Link="Shared.cs" />
+  </ItemGroup>
+</Project>

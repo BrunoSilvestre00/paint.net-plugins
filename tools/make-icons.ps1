@@ -1,4 +1,4 @@
-# Gera os ícones 16x16 dos plugins (src\<Plugin>\icon.png).
+﻿# Gera os ícones 16x16 dos plugins (src\<Plugin>\icon.png).
 # Desenha em 256x256 com antialias e reduz com alta qualidade para ficar nítido.
 # Uso: .\tools\make-icons.ps1
 Add-Type -AssemblyName System.Drawing
@@ -60,4 +60,34 @@ $pen.LineJoin = 'Round'
 $c.G.DrawPolygon($pen, $pts)
 Save-Small $c.Bmp "$root\src\Skew\icon.png"
 
+# --- Rotação: quadrado girado com seta curva ---
+$c = New-Canvas
+$g = $c.G
+$state = $g.Save()
+$g.TranslateTransform(120, 136)
+$g.RotateTransform(-28)
+$g.TranslateTransform(-56, -56)
+$sq = Round-Rect 0 0 112 112 20
+$g.FillPath((New-Object System.Drawing.SolidBrush (Color '#8FD19E')), $sq)
+$g.DrawPath((New-Object System.Drawing.Pen (Color '#2E7D32'), 16), $sq)
+$g.Restore($state)
+
+# Arco no canto superior direito, sentido horário, com ponta de seta no fim.
+$cx = 128.0; $cy = 128.0; $r = 104.0
+$startDeg = -75.0; $sweep = 65.0
+$arcPen = New-Object System.Drawing.Pen (Color '#1B4D20'), 18
+$arcPen.StartCap = 'Round'
+$g.DrawArc($arcPen, ($cx - $r), ($cy - $r), (2 * $r), (2 * $r), $startDeg, $sweep)
+$endRad = ($startDeg + $sweep) * [Math]::PI / 180
+$ex = $cx + $r * [Math]::Cos($endRad); $ey = $cy + $r * [Math]::Sin($endRad)
+$tx = -[Math]::Sin($endRad); $ty = [Math]::Cos($endRad)      # tangente (sentido horário)
+$nx = [Math]::Cos($endRad);  $ny = [Math]::Sin($endRad)      # normal (para fora)
+$tip = @(
+    (New-Object System.Drawing.PointF ($ex + $tx * 46), ($ey + $ty * 46)),
+    (New-Object System.Drawing.PointF ($ex + $nx * 34), ($ey + $ny * 34)),
+    (New-Object System.Drawing.PointF ($ex - $nx * 34), ($ey - $ny * 34))
+)
+$g.FillPolygon((New-Object System.Drawing.SolidBrush (Color '#1B4D20')), $tip)
+Save-Small $c.Bmp "$root\src\Rotate\icon.png"
 Write-Host 'Ícones gerados.'
+

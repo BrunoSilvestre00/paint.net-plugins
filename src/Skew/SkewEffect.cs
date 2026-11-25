@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using PaintDotNet;
 using PaintDotNet.Effects;
 using PaintDotNet.IndirectUI;
 using PaintDotNet.Imaging;
 using PaintDotNet.PropertySystem;
 using PaintDotNet.Rendering;
+using PluginShared;
 
 namespace Skew;
 
@@ -31,7 +31,7 @@ public sealed class SkewInfo : IPluginSupportInfo
 [EffectCategory(EffectCategory.Effect)]
 public sealed class SkewEffect : PropertyBasedBitmapEffect
 {
-    private const string SubMenu = "Distorcer";
+    private const string SubMenu = "Distorção";
     private const double MaxTiltDegrees = 85.0;
 
     private enum PropertyNames { Angle, Axis }
@@ -41,16 +41,9 @@ public sealed class SkewEffect : PropertyBasedBitmapEffect
     private float cx, cy;        // centro da inclinação
 
     public SkewEffect()
-        : base("Inclinação", LoadIcon(), SubMenu, BitmapEffectOptions.Create() with { IsConfigurable = true })
+        : base("Inclinação", ResourceIcon.Load(typeof(SkewEffect).Assembly), SubMenu,
+               BitmapEffectOptions.Create() with { IsConfigurable = true })
     {
-    }
-
-    /// <summary>Ícone do menu, embutido na DLL (src\Skew\icon.png).</summary>
-    private static System.Drawing.Image LoadIcon()
-    {
-        using Stream stream = typeof(SkewEffect).Assembly.GetManifestResourceStream("icon.png")!;
-        using var raw = new System.Drawing.Bitmap(stream);
-        return new System.Drawing.Bitmap(raw); // cópia: não depende do stream aberto
     }
 
     protected override PropertyCollection OnCreatePropertyCollection()
@@ -79,15 +72,8 @@ public sealed class SkewEffect : PropertyBasedBitmapEffect
     {
         using IEffectInputBitmap<ColorBgra32> source = Environment.GetSourceBitmapBgra32();
         SizeInt32 size = source.Size;
-        var image = new RectInt32(0, 0, size.Width, size.Height);
 
-        RectFloat sel = Environment.Selection.Geometry.GetBounds(null);
-        RectInt32 selBounds = RectInt32.Intersect(
-            RectInt32.FromEdges((int)MathF.Floor(sel.Left), (int)MathF.Floor(sel.Top),
-                                (int)MathF.Ceiling(sel.Right), (int)MathF.Ceiling(sel.Bottom)),
-            image);
-
-        content = selBounds.HasArea ? selBounds : image;
+        content = Geometry.ContentBounds(Environment.Selection.Geometry.GetBounds(null), size);
         cx = content.Left + content.Width / 2f;
         cy = content.Top + content.Height / 2f;
 
@@ -108,7 +94,7 @@ public sealed class SkewEffect : PropertyBasedBitmapEffect
         RectInt32 need = SourceNeeded(rect, t, horizontal);
         if (!need.HasArea)
         {
-            Clear(dst, rect.Width, rect.Height);
+            Sampling.Clear(dst, rect.Width, rect.Height);
             return;
         }
 
@@ -127,7 +113,7 @@ public sealed class SkewEffect : PropertyBasedBitmapEffect
                 if (horizontal) { sx = px + (py - cy) * t; sy = py; }
                 else            { sx = px; sy = py + (px - cx) * t; }
 
-                d[x] = SampleBilinear(src, need, sx - 0.5f, sy - 0.5f);
+                d[x] = Sampling.SampleBilinear(src, need, sx - 0.5f, sy - 0.5f);
             }
         }
     }
@@ -156,49 +142,5 @@ public sealed class SkewEffect : PropertyBasedBitmapEffect
         var r = RectInt32.FromEdges((int)MathF.Floor(minX) - 2, (int)MathF.Floor(minY) - 2,
                                     (int)MathF.Ceiling(maxX) + 2, (int)MathF.Ceiling(maxY) + 2);
         return RectInt32.Intersect(r, content);
-    }
-
-    private static unsafe void Clear(IBitmapLock<ColorBgra32> dst, int w, int h)
-    {
-        for (int y = 0; y < h; y++)
-        {
-            ColorBgra32* d = (ColorBgra32*)((byte*)dst.Buffer + (long)y * dst.BufferStride);
-            for (int x = 0; x < w; x++) d[x] = ColorBgra32.FromBgra(0, 0, 0, 0);
-        }
-    }
-
-    /// <summary>Interpolação bilinear em alfa pré-multiplicado (evita halos). Fora da área = transparente.</summary>
-    private static unsafe ColorBgra32 SampleBilinear(IBitmapLock<ColorBgra32> src, RectInt32 area, float u, float v)
-    {
-        int x0 = (int)MathF.Floor(u), y0 = (int)MathF.Floor(v);
-        float fx = u - x0, fy = v - y0;
-
-        float a = 0, r = 0, g = 0, b = 0;
-        for (int j = 0; j < 2; j++)
-        {
-            int yy = y0 + j;
-            float wy = j == 0 ? 1f - fy : fy;
-            if (yy < area.Top || yy >= area.Bottom) continue;
-            ColorBgra32* row = (ColorBgra32*)((byte*)src.Buffer + (long)(yy - area.Top) * src.BufferStride);
-
-            for (int i = 0; i < 2; i++)
-            {
-                int xx = x0 + i;
-                if (xx < area.Left || xx >= area.Right) continue;
-                float w = wy * (i == 0 ? 1f - fx : fx);
-                ColorBgra32 p = row[xx - area.Left];
-                float pa = p.A / 255f * w;
-                a += pa;
-                r += p.R * pa; g += p.G * pa; b += p.B * pa;
-            }
-        }
-
-        if (a <= 0.0001f) return ColorBgra32.FromBgra(0, 0, 0, 0);
-        float inv = 1f / a;
-        return ColorBgra32.FromBgra(
-            (byte)Math.Clamp(b * inv + 0.5f, 0f, 255f),
-            (byte)Math.Clamp(g * inv + 0.5f, 0f, 255f),
-            (byte)Math.Clamp(r * inv + 0.5f, 0f, 255f),
-            (byte)Math.Clamp(a * 255f + 0.5f, 0f, 255f));
     }
 }
