@@ -29,7 +29,7 @@ Funciona sobre a transparência da camada (alfa): precisa haver uma forma com fu
 
 Requisitos: [.NET 11 SDK](https://dotnet.microsoft.com/download) e o Paint.NET instalado.
 
-1. Crie um arquivo `.env` na raiz com o caminho do seu Paint.NET:
+1. Copie `.env.example` para `.env` e ajuste o caminho do seu Paint.NET:
    ```
    PAINT_NET_PATH="C:\Program Files\Paint.NET"
    ```
