@@ -4,13 +4,14 @@ Plugins de efeito para o [Paint.NET](https://www.getpaint.net/) 5.x (.NET 11).
 
 ## Plugins
 
-| Plugin | Menu | O que faz |
-|---|---|---|
-| **Erosão de Contorno** | Efeitos → Objeto | Recua o contorno de uma forma N pixels para dentro (erosão morfológica do canal alfa), com borda seca ou com blur. |
+| Plugin | Nome em inglês | Menu | O que faz |
+|---|---|---|---|
+| **Erosão de Contorno** | **Contour Erosion** | Efeitos → Objeto (*Effects → Object*) | Recua o contorno de uma forma N pixels para dentro (erosão morfológica do canal alfa), com borda seca ou com blur. |
+| **Inclinação** | **Skew** | Efeitos → Distorcer (*Effects → Distort*) | Inclina (cisalhamento/skew) o conteúdo da seleção com uma roleta de ângulo, na horizontal ou na vertical. |
 
-| **Inclinação** | Efeitos → Distorcer | Inclina (cisalhamento/skew) o conteúdo da seleção com uma roleta de ângulo, na horizontal ou na vertical. |
+> The plugins are named in Portuguese inside Paint.NET; the English names above are for reference (and match the DLL names: `ContourErosion.dll`, `Skew.dll`).
 
-### Erosão de Contorno
+### Erosão de Contorno (Contour Erosion)
 
 - **Profundidade da erosão (px)**: 1 a 100.
 - **Tipo de borda**: *Seco* (corte nítido) ou *Com blur* (degradê suave).
@@ -18,7 +19,7 @@ Plugins de efeito para o [Paint.NET](https://www.getpaint.net/) 5.x (.NET 11).
 
 Funciona sobre a transparência da camada (alfa): precisa haver uma forma com fundo transparente. Usa um campo de distância com precisão de subpixel, então bordas com antialias não viram degraus.
 
-### Inclinação
+### Inclinação (Skew)
 
 - **Ângulo de inclinação**: roleta de -180° a 180°, dobrada para a faixa útil de -85° a 85°.
 - **Eixo**: *Horizontal* (bordas verticais inclinam) ou *Vertical* (bordas horizontais inclinam).
