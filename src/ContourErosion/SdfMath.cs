@@ -50,7 +50,7 @@ internal static class SdfMath
     /// de borda e a forma inteira é comida. Usa o percentil 98 dos pixels visíveis como "opaco" e
     /// encaixa em 0/1 o que está a menos de 2% dos extremos.
     /// </summary>
-    private static float[] NormalizeAlpha(float[] alpha)
+    internal static float[] NormalizeAlpha(float[] alpha)
     {
         var hist = new int[256];
         int visible = 0;

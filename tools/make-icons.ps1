@@ -89,5 +89,27 @@ $tip = @(
 )
 $g.FillPolygon((New-Object System.Drawing.SolidBrush (Color '#1B4D20')), $tip)
 Save-Small $c.Bmp "$root\src\Rotate\icon.png"
+# --- ShapeFit: um círculo (objeto) sendo esticado até preencher a forma de destino (quadrado) ---
+$c = New-Canvas
+$g = $c.G
+$box = Round-Rect 20 20 216 216 36
+$g.FillPath((New-Object System.Drawing.SolidBrush (Color '#D1C4E9')), $box)
+$g.DrawPath((New-Object System.Drawing.Pen (Color '#4527A0'), 16), $box)
+$g.FillEllipse((New-Object System.Drawing.SolidBrush (Color '#7E57C2')), 56, 56, 144, 144)
+# quatro setinhas saindo do círculo em direção aos cantos
+$arrow = New-Object System.Drawing.SolidBrush (Color '#4527A0')
+foreach ($ang in 45, 135, 225, 315) {
+    $rad = $ang * [Math]::PI / 180
+    $cx = 128 + 90 * [Math]::Cos($rad); $cy = 128 + 90 * [Math]::Sin($rad)
+    $tx = [Math]::Cos($rad); $ty = [Math]::Sin($rad)
+    $pts = @(
+        (New-Object System.Drawing.PointF ($cx + $tx * 26), ($cy + $ty * 26)),
+        (New-Object System.Drawing.PointF ($cx - $ty * 20), ($cy + $tx * 20)),
+        (New-Object System.Drawing.PointF ($cx + $ty * 20), ($cy - $tx * 20))
+    )
+    $g.FillPolygon($arrow, $pts)
+}
+Save-Small $c.Bmp "$root\src\ShapeFit\icon.png"
+
 Write-Host 'Ícones gerados.'
 

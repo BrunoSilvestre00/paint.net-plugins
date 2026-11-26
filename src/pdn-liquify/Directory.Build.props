@@ -1,0 +1,6 @@
+<Project>
+  <!--
+    Intencionalmente vazio: o Liquify (upstream, MIT) tem o próprio csproj completo, então não deve
+    herdar o Directory.Build.props da raiz (que adiciona referências e propriedades dos nossos plugins).
+  -->
+</Project>

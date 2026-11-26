@@ -1,0 +1,145 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Alterado de net9.0: o Paint.NET 5.2 roda em .NET 11 (ver paintdotnet.runtimeconfig.json). -->
+    <TargetFramework>net11.0-windows10.0.26100.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>pyrochild.effects.liquify</RootNamespace>
+    <AssemblyName>Liquify</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- PdnDir, EffectsDir, BuildStamp and Beta are named the same in every plugin, so that the
+         workflows in .github only differ between them in the few names at the top of each. -->
+
+    <!-- A beta is the Release build with this set (-p:Beta=true; see .github/workflows/release.yml),
+         so that testers run the same code as a release. It names the effect "Liquify BETA" and makes
+         the update check look for newer betas too. -->
+    <DefineConstants Condition="'$(Beta)' == 'true'">$(DefineConstants);BETA</DefineConstants>
+
+    <!-- Where Paint.NET is installed. Override with -p:PdnDir=...\ (keep the trailing backslash). -->
+    <PdnDir Condition="'$(PdnDir)' == ''">C:\Program Files\Paint.NET\</PdnDir>
+    <!-- WFO3001 (novo no SDK do .NET 11): OnDispose vive no .designer.cs. Só organização, sem efeito em runtime. -->
+    <NoWarn>$(NoWarn);WFO1000;WFO3001</NoWarn>
+    <MSBuildWarningsAsMessages>MSB3277</MSBuildWarningsAsMessages>
+
+    <Product>Liquify</Product>
+    <AssemblyTitle>Liquify</AssemblyTitle>
+    <!-- The Plugin Browser plugin searches the description, and the keywords below it, which it
+         reads from AssemblyConfiguration. The SDK would otherwise put "Debug" or "Release" there. -->
+    <Description>Distorts an image as if it were liquid: push, twist, bloat and pucker it with a brush.</Description>
+    <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
+    <Company>Zach Walker, a.k.a. pyrochild</Company>
+    <Copyright>Copyright © 2010-2026 Zach Walker</Copyright>
+
+    <!--
+      VersionPrefix is the Paint.NET version this is built for. The rest, yyMM.ddHH, tells builds
+      apart: the time of the build, unless a release passes the stamp worked out from its commit
+      (-p:BuildStamp=2610.0614; see .github/workflows/release.yml).
+    -->
+    <VersionPrefix>5.1</VersionPrefix>
+    <!-- Only a build given its stamp checks for updates: see UpdateChecker. -->
+    <DefineConstants Condition="'$(BuildStamp)' != ''">$(DefineConstants);RELEASED_BUILD</DefineConstants>
+    <BuildStamp Condition="'$(BuildStamp)' == ''">$([System.DateTime]::Now.ToString(yyMM)).$([System.DateTime]::Now.ToString(ddHH))</BuildStamp>
+    <AssemblyVersion>$(VersionPrefix).$(BuildStamp)</AssemblyVersion>
+    <FileVersion>$(AssemblyVersion)</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyConfigurationAttribute">
+      <_Parameter1>liquify|liquefy|warp|distort|push|smear|twist|swirl|bloat|bulge|pucker|pinch|reconstruct|freeze|mask|mesh|reshape|retouch</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- lets the test project use internal types such as LiquifyRenderer -->
+    <InternalsVisibleTo Include="Liquify.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="PaintDotNet.Base">
+      <HintPath>$(PdnDir)PaintDotNet.Base.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="PaintDotNet.Core">
+      <HintPath>$(PdnDir)PaintDotNet.Core.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="PaintDotNet.Effects">
+      <HintPath>$(PdnDir)PaintDotNet.Effects.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="PaintDotNet.Effects.Core">
+      <HintPath>$(PdnDir)PaintDotNet.Effects.Core.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="PaintDotNet.Primitives">
+      <HintPath>$(PdnDir)PaintDotNet.Primitives.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="PaintDotNet.ComponentModel">
+      <HintPath>$(PdnDir)PaintDotNet.ComponentModel.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="PaintDotNet.ObjectModel">
+      <HintPath>$(PdnDir)PaintDotNet.ObjectModel.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="PaintDotNet.Windows">
+      <HintPath>$(PdnDir)PaintDotNet.Windows.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="common\ColorDialog.resx">
+      <DependentUpon>ColorDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Update="common\ColorWheel.resx">
+      <DependentUpon>ColorWheel.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Update="ConfigDialog.resx">
+      <DependentUpon>ConfigDialog.cs</DependentUpon>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="images\icon.png" />
+    <EmbeddedResource Include="images\bloat.png" />
+    <EmbeddedResource Include="images\freeze.png" />
+    <EmbeddedResource Include="images\pucker.png" />
+    <EmbeddedResource Include="images\push.png" />
+    <EmbeddedResource Include="images\redo.png" />
+    <EmbeddedResource Include="images\save.png" />
+    <EmbeddedResource Include="images\thaw.png" />
+    <EmbeddedResource Include="images\twistleft.png" />
+    <EmbeddedResource Include="images\twistright.png" />
+    <EmbeddedResource Include="images\undo.png" />
+    <EmbeddedResource Include="images\zoomin.png" />
+    <EmbeddedResource Include="images\zoomout.png" />
+    <EmbeddedResource Include="images\minus.png" />
+    <EmbeddedResource Include="images\open.png" />
+    <EmbeddedResource Include="images\plus.png" />
+    <EmbeddedResource Include="images\reconstruct.png" />
+    <EmbeddedResource Include="images\colorwheel.png" />
+    <EmbeddedResource Include="images\clearmask.png" />
+    <EmbeddedResource Include="images\invertmask.png" />
+    <EmbeddedResource Include="images\resetall.png" />
+
+    <!-- The Plugin Browser plugin shows this as the plugin's preview: 200 x 150, found by the
+         ".sample." in its name. Before and after, made with the brush code itself (bloat on the
+         eyes, push on the corners of the mouth). The picture is Leonardo's Mona Lisa, which is in
+         the public domain, from https://commons.wikimedia.org/wiki/File:Mona_Lisa,_by_Leonardo_da_Vinci,_from_C2RMF_retouched.jpg -->
+    <EmbeddedResource Include="images\Liquify.sample.png" />
+  </ItemGroup>
+
+
+  <PropertyGroup>
+    <EffectsDir Condition="'$(EffectsDir)' == ''">$(USERPROFILE)\Documents\paint.net App Files\Effects\</EffectsDir>
+  </PropertyGroup>
+
+  <Target Name="CopyToEffectsFolder" AfterTargets="Build">
+    <MakeDir Directories="$(EffectsDir)" Condition="!Exists('$(EffectsDir)')" ContinueOnError="WarnAndContinue" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(EffectsDir)" ContinueOnError="WarnAndContinue" />
+  </Target>
+
+</Project>

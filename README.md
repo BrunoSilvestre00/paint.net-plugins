@@ -9,8 +9,9 @@ Plugins de efeito para o [Paint.NET](https://www.getpaint.net/) 5.x (.NET 11).
 | **Erosão de Contorno** | **Contour Erosion** | Efeitos → Objeto (*Effects → Object*) | Recua o contorno de uma forma N pixels para dentro (erosão morfológica do canal alfa), com borda seca ou com blur. |
 | **Inclinação** | **Skew** | Efeitos → Distorção (*Effects → Distort*) | Inclina (cisalhamento/skew) o conteúdo da seleção com uma roleta de ângulo, na horizontal ou na vertical. |
 | **Rotação** | **Rotate** | Efeitos → Distorção (*Effects → Distort*) | Rotaciona o conteúdo da seleção com uma roleta de ângulo, em torno do centro do objeto ou da seleção. |
+| **ShapeFit** | **ShapeFit** | Efeitos → Distorção (*Effects → Distort*) | "Liquify automático": deforma o objeto da camada para preencher a forma da seleção. Sem janela, aplica direto. |
 
-> The plugins are named in Portuguese inside Paint.NET; the English names above are for reference (and match the DLL names: `ContourErosion.dll`, `Skew.dll`, `Rotate.dll`).
+> The plugins are named in Portuguese inside Paint.NET; the English names above are for reference (and match the DLL names: `ContourErosion.dll`, `Skew.dll`, `Rotate.dll`, `ShapeFit.dll`).
 
 ### Erosão de Contorno (Contour Erosion)
 
@@ -32,6 +33,22 @@ Funciona sobre a transparência da camada (alfa): precisa haver uma forma com fu
 - **Ângulo de rotação**: roleta de -180° a 180°. Positivo gira no sentido anti-horário.
 - **Pivô**: *Centro do objeto* (caixa dos pixels visíveis, bom para sprites com margem transparente) ou *Centro da seleção*.
 - Mesma limitação da Inclinação: o que sair da seleção é cortado, então selecione uma área maior que a imagem.
+
+### ShapeFit
+
+Deforma o objeto da camada atual (os pixels visíveis) até a silhueta dele coincidir com a forma da seleção. Não tem janela de opções: é aplicado direto (Ctrl+Z desfaz).
+
+**Fluxo recomendado (não destrutivo):**
+
+1. Com o objeto numa camada, crie uma **camada nova vazia acima dela** e deixe-a selecionada.
+2. Faça uma seleção com a forma de destino (sem seleção, o alvo é a camada inteira).
+3. Efeitos → Distorção → ShapeFit.
+
+Como a camada atual está vazia, o ShapeFit pega o objeto da **camada mais próxima abaixo** que tenha conteúdo e escreve o resultado na camada nova. O original fica intacto na camada de baixo: esconda ou apague essa camada se não quiser vê-lo.
+
+**Se o objeto estiver na própria camada atual**, ele é usado de lá, mas o que estiver fora da seleção fica como estava: um efeito do Paint.NET só escreve dentro da seleção. Para ficar só com o resultado, depois de aplicar use `Ctrl+I` (inverter seleção) e `Delete`.
+
+Como funciona: alinha o objeto à seleção pelos momentos (centro, escala e eixos) e depois registra as duas silhuetas com um warp não-rígido de baixa distorção, feito em campos de distância com sinal, da escala grossa para a fina, com relaxamento ARAP (penaliza esticar e cisalhar, não girar). O código do algoritmo é puro (`src/ShapeFit/ShapeRegistration.cs`) e tem testes em `src/ShapeFit.Tests`.
 
 ## Instalação (usar o plugin)
 

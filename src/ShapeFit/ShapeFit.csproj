@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>ShapeFit</AssemblyName>
+    <RootNamespace>ShapeFit</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="icon.png" LogicalName="icon.png" />
+    <Compile Include="..\Shared\Shared.cs" Link="Shared.cs" />
+    <!-- Campo de distância com sinal (subpixel) compartilhado com o ContourErosion. -->
+    <Compile Include="..\ContourErosion\SdfMath.cs" Link="SdfMath.cs" />
+  </ItemGroup>
+</Project>
