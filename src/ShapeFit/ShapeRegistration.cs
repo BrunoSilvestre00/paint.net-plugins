@@ -32,8 +32,15 @@ internal static class ShapeRegistration
     /// <see cref="BandWidth"/>: se &gt; 0, o empurrão só age perto da borda (estilo Liquify); 0 = o objeto
     /// inteiro participa (deformação global).
     /// </summary>
+    /// <param name="ContainMargin">
+    /// Se &gt; 0, o alvo mira esta distância (px) para DENTRO da borda do objeto, então o mapa leva a forma
+    /// alvo inteira para dentro do objeto e nenhum pixel precisa ser "pintado" (cinza, borda esticada...).
+    /// Medido (ver Containment_isolate_offset_only): com 1 px, 0,000% dos pixels caem fora do objeto nos
+    /// quatro pares de teste, sem mudar a distorção. Um laço final de "contenção" foi tentado e PIOROU
+    /// (a suavização desfazia a correção), por isso só o deslocamento é usado.
+    /// </param>
     internal readonly record struct Options(float SigmaPx, float BandWidth = 0f, float IterationScale = 1f,
-                                           float ArapStep = 0f, int ArapPasses = 4);
+                                           float ArapStep = 0f, int ArapPasses = 4, float ContainMargin = 0f);
 
     /// <summary>
     /// Configuração escolhida nas medições (ver ShapeFit.Tests, Tuning_table): força guiada pela borda
@@ -41,7 +48,7 @@ internal static class ShapeRegistration
     /// que a base sem ARAP na maioria dos pares, com IoU ≥ 97,9% mesmo no caso mais difícil (estrela -> círculo).
     /// Só o σ varia: mais σ = mais rígido (menos distorção, encaixe mais frouxo).
     /// </summary>
-    public static Options Default(double sigmaPx) => new((float)sigmaPx, 10f, 1f, 0.1f, 2);
+    public static Options Default(double sigmaPx) => new((float)sigmaPx, 10f, 1f, 0.1f, 2, ContainMargin: 1f);
 
     /// <summary>Deslocamento por pixel (em pixels do nível 0): M(p + u(p)) ≈ F(p).</summary>
     internal readonly struct Field
@@ -58,7 +65,16 @@ internal static class ShapeRegistration
     /// </summary>
     public static Field Register(float[] fixedSdf, float[] moving, int w, int h, Options options, int maxLevels = 9)
     {
-        var fs = new List<(float[] data, int w, int h)> { (fixedSdf, w, h) };
+        // Contenção: mirar ContainMargin px para dentro da borda do objeto (F + margem: o SDF do alvo
+        // "sobe", então a borda do alvo só casa onde o objeto já tem essa profundidade).
+        float[] fit = fixedSdf;
+        if (options.ContainMargin > 0f)
+        {
+            fit = new float[fixedSdf.Length];
+            for (int i = 0; i < fit.Length; i++) fit[i] = fixedSdf[i] + options.ContainMargin;
+        }
+
+        var fs = new List<(float[] data, int w, int h)> { (fit, w, h) };
         var ms = new List<(float[] data, int w, int h)> { (moving, w, h) };
         while (fs.Count < maxLevels && Math.Min(fs[^1].w, fs[^1].h) >= 40)
         {
@@ -225,30 +241,6 @@ internal static class ShapeRegistration
         float dx = x - cx, dy = y - cy;
         if (dx != 0f || dy != 0f) v -= MathF.Sqrt(dx * dx + dy * dy);
         return v;
-    }
-
-    /// <summary>
-    /// Se (x, y) está fora do objeto (ou a menos de <paramref name="margin"/> pixels da borda), empurra o
-    /// ponto para dentro, pelo gradiente do SDF, até ficar a <paramref name="margin"/> da borda. Usado na
-    /// amostragem de cor: onde o encaixe aponta para fora do objeto, a cor correta é a da borda mais
-    /// próxima (continuação do conteúdo), e não uma média borrada. Coordenadas em índices do SDF.
-    /// </summary>
-    public static void ProjectInside(float[] sdf, int w, int h, ref float x, ref float y, float margin, int iterations = 3)
-    {
-        for (int it = 0; it < iterations; it++)
-        {
-            float depth = Sample(sdf, w, h, x, y);
-            if (depth >= margin - 0.05f) return;
-
-            float gx = (Sample(sdf, w, h, x + 1, y) - Sample(sdf, w, h, x - 1, y)) * 0.5f;
-            float gy = (Sample(sdf, w, h, x, y + 1) - Sample(sdf, w, h, x, y - 1)) * 0.5f;
-            float n = MathF.Sqrt(gx * gx + gy * gy);
-            if (n < 1e-3f) return; // sem direção (eixo medial): não há para onde empurrar
-
-            float push = margin - depth;
-            x += gx / n * push;
-            y += gy / n * push;
-        }
     }
 
     // ---- Pirâmide ----

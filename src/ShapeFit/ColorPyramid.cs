@@ -7,9 +7,8 @@ namespace ShapeFit;
 
 /// <summary>
 /// Pirâmide de cores do objeto (alfa pré-multiplicado) para amostrar a cor onde o mapa de deformação
-/// aponta. Dois usos: (1) escolher o nível pelo quanto o objeto é encolhido (evita serrilhado quando ele
-/// é reduzido) e (2) "pull-push": se a amostra cai onde o objeto é transparente (borda imperfeita), sobe
-/// de nível até achar cor, o que preenche a borda com a cor vizinha em vez de deixar buraco.
+/// aponta. Serve para escolher o nível pelo quanto o objeto é encolhido (evita serrilhado). Não
+/// preenche nada: fora do objeto a amostra é transparente.
 /// </summary>
 internal sealed class ColorPyramid
 {
@@ -66,41 +65,46 @@ internal sealed class ColorPyramid
 
     private static int Ceil(int a, int b) => (a + b - 1) / b;
 
-    /// <summary>Cor opaca do objeto no ponto (qx, qy) da camada; <paramref name="lod"/> = log2 do encolhimento.</summary>
-    public ColorBgra32 SampleOpaque(double qx, double qy, double lod)
+    /// <summary>
+    /// Amostra o objeto no ponto (qx, qy) da camada; <paramref name="lod"/> = log2 do encolhimento.
+    /// Devolve a cor SEM alfa (r, g, b em 0..255, média só dos pixels reais da célula) e o alfa (0..1).
+    /// Fora do objeto o alfa é 0: nada é preenchido nem inventado. Com lod = 0 e o ponto no centro de um
+    /// pixel, devolve exatamente o pixel original.
+    /// </summary>
+    public void Sample(double qx, double qy, double lod, out float r, out float g, out float b, out float a)
     {
         int level = Math.Clamp((int)Math.Round(lod) - shift, 0, levels.Count - 1);
-        while (true)
-        {
-            double scale = 1 << (shift + level);
-            float lx = (float)((qx - left) / scale - 0.5), ly = (float)((qy - top) / scale - 0.5);
-            Bilinear(level, lx, ly, out float r, out float g, out float b, out float a);
+        double scale = 1 << (shift + level);
+        Bilinear(level, (float)((qx - left) / scale - 0.5), (float)((qy - top) / scale - 0.5),
+                 out float pr, out float pg, out float pb, out a);
 
-            if (a >= 0.5f || level == levels.Count - 1)
-            {
-                if (a <= 1e-6f) return ColorBgra32.FromBgra(0, 0, 0, 255);
-                float inv = 1f / a;
-                return ColorBgra32.FromBgra(ToByte(b * inv), ToByte(g * inv), ToByte(r * inv), 255);
-            }
-            level++; // buraco: sobe de nível até achar cor ("pull-push")
-        }
+        if (a <= 1e-6f) { r = g = b = 0f; a = 0f; return; }
+        float inv = 1f / a; // premult / alfa
+        r = pr * inv; g = pg * inv; b = pb * inv;
     }
 
-    private static byte ToByte(float v) => (byte)(v < 0f ? 0 : (v > 255f ? 255 : v + 0.5f));
-
+    /// <summary>Bilinear em alfa pré-multiplicado; fora do nível conta como transparente (zero).</summary>
     private void Bilinear(int level, float x, float y, out float r, out float g, out float b, out float a)
     {
         var data = levels[level];
         int w = widths[level], h = heights[level];
-        float cx = x < 0 ? 0 : (x > w - 1 ? w - 1 : x);
-        float cy = y < 0 ? 0 : (y > h - 1 ? h - 1 : y);
-        int x0 = (int)cx, y0 = (int)cy, x1 = x0 + 1 < w ? x0 + 1 : x0, y1 = y0 + 1 < h ? y0 + 1 : y0;
-        float fx = cx - x0, fy = cy - y0;
-        float w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
-        int i00 = (y0 * w + x0) * 4, i10 = (y0 * w + x1) * 4, i01 = (y1 * w + x0) * 4, i11 = (y1 * w + x1) * 4;
-        r = data[i00] * w00 + data[i10] * w10 + data[i01] * w01 + data[i11] * w11;
-        g = data[i00 + 1] * w00 + data[i10 + 1] * w10 + data[i01 + 1] * w01 + data[i11 + 1] * w11;
-        b = data[i00 + 2] * w00 + data[i10 + 2] * w10 + data[i01 + 2] * w01 + data[i11 + 2] * w11;
-        a = data[i00 + 3] * w00 + data[i10 + 3] * w10 + data[i01 + 3] * w01 + data[i11 + 3] * w11;
+        int x0 = (int)MathF.Floor(x), y0 = (int)MathF.Floor(y);
+        float fx = x - x0, fy = y - y0;
+
+        r = g = b = a = 0f;
+        for (int j = 0; j < 2; j++)
+        {
+            int yy = y0 + j;
+            if (yy < 0 || yy >= h) continue;
+            float wy = j == 0 ? 1 - fy : fy;
+            for (int i = 0; i < 2; i++)
+            {
+                int xx = x0 + i;
+                if (xx < 0 || xx >= w) continue;
+                float wgt = wy * (i == 0 ? 1 - fx : fx);
+                int o = (yy * w + xx) * 4;
+                r += data[o] * wgt; g += data[o + 1] * wgt; b += data[o + 2] * wgt; a += data[o + 3] * wgt;
+            }
+        }
     }
 }

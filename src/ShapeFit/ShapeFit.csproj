@@ -8,6 +8,7 @@
   <ItemGroup>
     <EmbeddedResource Include="icon.png" LogicalName="icon.png" />
     <Compile Include="..\Shared\Shared.cs" Link="Shared.cs" />
+    <Compile Include="..\Shared\MaskRaster.cs" Link="MaskRaster.cs" />
     <!-- Campo de distância com sinal (subpixel) compartilhado com o ContourErosion. -->
     <Compile Include="..\ContourErosion\SdfMath.cs" Link="SdfMath.cs" />
   </ItemGroup>

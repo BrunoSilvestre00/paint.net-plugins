@@ -83,7 +83,8 @@ public class ShapeRegistrationTests
 
     private static double Area(float[] alpha) { double s = 0; foreach (float a in alpha) s += a; return s; }
 
-    private static double Iou(float[] fixedSdf, float[] moving, ShapeRegistration.Field? u)
+    /// <summary>IoU entre o alvo e o objeto deformado. <paramref name="margin"/>: o objeto é medido recuado dessa profundidade (a margem de contenção).</summary>
+    private static double Iou(float[] fixedSdf, float[] moving, ShapeRegistration.Field? u, float margin = 0f)
     {
         long inter = 0, union = 0;
         for (int y = 0; y < N; y++)
@@ -92,22 +93,40 @@ public class ShapeRegistrationTests
                 float mw = u.HasValue
                     ? ShapeRegistration.Sample(moving, N, N, x + u.Value.Ux[y * N + x], y + u.Value.Uy[y * N + x])
                     : moving[y * N + x];
-                bool a = fixedSdf[y * N + x] > 0, b = mw > 0;
+                bool a = fixedSdf[y * N + x] > 0, b = mw > margin;
                 if (a && b) inter++;
                 if (a || b) union++;
             }
         return union == 0 ? 1 : (double)inter / union;
     }
 
-    private record Result(double Before, double After, double Folded, double MeanAniso, double P95Aniso, double Outer, double Inner);
+    private record Result(double Before, double After, double Folded, double MeanAniso, double P95Aniso, double Outer, double Inner, double Leak);
 
-    private static Result Measure(string label, float[] f, float[] m, ShapeRegistration.Field u, double before, long ms, ITestOutputHelper output)
+    /// <summary>
+    /// Fração dos pixels da forma alvo cujo ponto de origem cai FORA do objeto: são os pixels que, sem
+    /// contenção, teriam que ser "pintados" (cinza, cor esticada...) em vez de vir da imagem deformada.
+    /// </summary>
+    private static double LeakFraction(float[] f, float[] m, ShapeRegistration.Field u)
     {
-        double after = Iou(f, m, u);
+        long inside = 0, leak = 0;
+        for (int y = 0; y < N; y++)
+            for (int x = 0; x < N; x++)
+            {
+                if (f[y * N + x] <= 0) continue;
+                inside++;
+                if (ShapeRegistration.Sample(m, N, N, x + u.Ux[y * N + x], y + u.Uy[y * N + x]) < 0f) leak++;
+            }
+        return inside == 0 ? 0 : (double)leak / inside;
+    }
+
+    private static Result Measure(string label, float[] f, float[] m, ShapeRegistration.Field u, double before, long ms, ITestOutputHelper output, float margin = 0f)
+    {
+        double after = Iou(f, m, u, margin);
         double folded = ShapeRegistration.FoldedFraction(u);
+        double leak = LeakFraction(f, m, u);
         var (all, outer, inner) = ShapeRegistration.AnisotropyProfile(u, f, 10f);
-        output.WriteLine($"{label,-36} IoU {before:P1} -> {after:P1} | dobras {folded:P2} | aniso média {all.meanAniso:F3} p95 {all.p95Aniso:F3} | borda {outer:F3} interior {inner:F3} | {ms} ms");
-        return new Result(before, after, folded, all.meanAniso, all.p95Aniso, outer, inner);
+        output.WriteLine($"{label,-36} IoU {before:P1} -> {after:P1} | fora do objeto {leak:P3} | dobras {folded:P2} | aniso média {all.meanAniso:F3} p95 {all.p95Aniso:F3} | borda {outer:F3} interior {inner:F3} | {ms} ms");
+        return new Result(before, after, folded, all.meanAniso, all.p95Aniso, outer, inner, leak);
     }
 
     /// <summary>
@@ -157,10 +176,11 @@ public class ShapeRegistrationTests
         double size = Math.Sqrt(Area(targetAlpha));
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var u = ShapeRegistration.Register(f, m, N, N, options(size));
+        var opts = options(size);
+        var u = ShapeRegistration.Register(f, m, N, N, opts);
         sw.Stop();
 
-        return Measure(label, f, m, u, before, sw.ElapsedMilliseconds, output);
+        return Measure(label, f, m, u, before, sw.ElapsedMilliseconds, output, opts.ContainMargin);
     }
 
     // ---- A configuração escolhida: encaixe exato com pouca distorção ----
@@ -194,6 +214,49 @@ public class ShapeRegistrationTests
         {
             output.WriteLine($"=== {cname}");
             foreach (var (name, target, obj) in Pairs) Run($"  {name}", target, obj, opt);
+        }
+    }
+
+    [Fact]
+    public void Containment_comparison_with_and_without()
+    {
+        // Mostra o antes/depois da contenção (informativo; o teste que falha se vazar é o próximo).
+        foreach (var (name, target, obj) in Pairs)
+        {
+            output.WriteLine($"--- {name}");
+            Run("  sem contenção", target, obj, s => new ShapeRegistration.Options((float)(0.02 * s), 10f, 1f, 0.1f, 2));
+            Run("  com contenção (padrão)", target, obj, Chosen(0.02));
+        }
+    }
+
+    [Fact]
+    public void Containment_isolate_offset_only()
+    {
+        // Só o deslocamento do alvo (F + c), sem o laço final: separa as duas peças.
+        foreach (var (name, target, obj) in Pairs)
+        {
+            output.WriteLine($"--- {name}");
+            float[] f = Sdf(Raster(target)), m = Sdf(Raster(obj));
+            double size = Math.Sqrt(Area(Raster(target)));
+            var plain = new ShapeRegistration.Options((float)(0.02 * size), 10f, 1f, 0.1f, 2);
+            foreach (float c in new[] { 0f, 0.5f, 1f, 1.5f, 2.5f })
+            {
+                float[] shifted = new float[f.Length];
+                for (int i = 0; i < f.Length; i++) shifted[i] = f[i] + c;
+                var u = ShapeRegistration.Register(shifted, m, N, N, plain);
+                Measure($"  só deslocamento c={c}", f, m, u, 0, 0, output);
+            }
+        }
+    }
+
+    [Fact]
+    public void Default_keeps_every_target_pixel_inside_the_object()
+    {
+        // Nenhum pixel da seleção pode precisar de "pintura": todos vêm de um ponto real do objeto.
+        foreach (var (name, target, obj) in Pairs)
+        {
+            var r = Run($"{name} (padrão)", target, obj, Chosen(0.02));
+            Assert.True(r.Leak <= 0.0002, $"{name}: {r.Leak:P3} dos pixels caem fora do objeto");
         }
     }
 
@@ -244,33 +307,6 @@ public class ShapeRegistrationTests
         Assert.True(mid.MeanAniso <= soft.MeanAniso + 1e-6, $"{mid.MeanAniso:F3} vs {soft.MeanAniso:F3}");
         Assert.True(stiff.MeanAniso <= mid.MeanAniso + 1e-6, $"{stiff.MeanAniso:F3} vs {mid.MeanAniso:F3}");
         Assert.True(stiff.After <= soft.After + 1e-6);
-    }
-
-    // ---- Projeção para dentro do objeto (preenchimento por continuação da borda) ----
-
-    [Fact]
-    public void ProjectInside_moves_outside_points_to_just_inside_the_edge()
-    {
-        float[] sdf = Sdf(Raster(Circle(128, 128, 60)));
-
-        foreach (var (px, py) in new[] { (128 + 70.0, 128.0), (128.0, 128 - 85.0), (128 + 50.0, 128 + 50.0), (128 - 66.0, 128.0) })
-        {
-            float x = (float)px - 0.5f, y = (float)py - 0.5f; // índice = coordenada - 0,5
-            ShapeRegistration.ProjectInside(sdf, N, N, ref x, ref y, 1.5f);
-            float depth = ShapeRegistration.Sample(sdf, N, N, x, y);
-            output.WriteLine($"({px},{py}) -> profundidade {depth:F2}");
-            Assert.InRange(depth, 1.0f, 2.0f);
-        }
-    }
-
-    [Fact]
-    public void ProjectInside_leaves_points_already_inside_alone()
-    {
-        float[] sdf = Sdf(Raster(Circle(128, 128, 60)));
-        float x = 140, y = 120;
-        ShapeRegistration.ProjectInside(sdf, N, N, ref x, ref y, 1.5f);
-        Assert.Equal(140, x, 3);
-        Assert.Equal(120, y, 3);
     }
 
     // ---- Alinhamento por momentos ----

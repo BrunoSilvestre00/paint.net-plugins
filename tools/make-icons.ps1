@@ -111,5 +111,15 @@ foreach ($ang in 45, 135, 225, 315) {
 }
 Save-Small $c.Bmp "$root\src\ShapeFit\icon.png"
 
+# --- Inline Object: forma com uma borda INTERNA (anel colado por dentro do contorno) ---
+$c = New-Canvas
+$g = $c.G
+$outer = Round-Rect 20 20 216 216 44
+$g.FillPath((New-Object System.Drawing.SolidBrush (Color '#ECEFF1')), $outer)
+$g.DrawPath((New-Object System.Drawing.Pen (Color '#90A4AE'), 10), $outer)
+$ring = Round-Rect 52 52 152 152 24
+$g.DrawPath((New-Object System.Drawing.Pen (Color '#E53935'), 28), $ring)
+Save-Small $c.Bmp "$root\src\InlineObject\icon.png"
+
 Write-Host 'Ícones gerados.'
 

@@ -82,3 +82,27 @@ internal static class Sampling
         }
     }
 }
+
+/// <summary>
+/// Identifica uma seleção para caches: caixa, área, tamanho da imagem e o resultado da geometria em uma
+/// grade de 12x12 pontos dentro da caixa (distingue formas diferentes com mesma caixa e área).
+/// </summary>
+internal readonly record struct SelectionSignature(RectFloat Bounds, float Area, SizeInt32 Size, ulong Probe)
+{
+    public static SelectionSignature Of(PaintDotNet.Direct2D1.IGeometry geometry, SizeInt32 size)
+    {
+        RectFloat bounds = geometry.GetBounds(null);
+        float area = geometry.ComputeArea(null, null);
+
+        const int N = 12;
+        ulong probe = 14695981039346656037UL;
+        for (int j = 0; j < N; j++)
+            for (int i = 0; i < N; i++)
+            {
+                float x = bounds.Left + bounds.Width * (i + 0.5f) / N, y = bounds.Top + bounds.Height * (j + 0.5f) / N;
+                bool inside = geometry.FillContainsPoint(new Point2Float(x, y), null, null);
+                probe = (probe ^ (inside ? 1UL : 0UL)) * 1099511628211UL;
+            }
+        return new SelectionSignature(bounds, area, size, probe);
+    }
+}

@@ -36,7 +36,9 @@ Funciona sobre a transparência da camada (alfa): precisa haver uma forma com fu
 
 ### ShapeFit
 
-Deforma o objeto da camada atual (os pixels visíveis) até a silhueta dele coincidir com a forma da seleção. Não tem janela de opções: é aplicado direto (Ctrl+Z desfaz).
+Deforma o objeto da camada atual (os pixels visíveis) até a silhueta dele coincidir com a forma da seleção.
+
+Único controle: **Fidelidade à forma (%)**, de 0 a 100 (padrão 100). Com **100%** o objeto é encaixado por completo; com **0%** nada muda (cópia exata do original); no meio o encaixe é parcial, e onde o objeto ainda não cobre a seleção o resultado fica transparente (nenhum pixel é pintado ou inventado). O encaixe é calculado uma vez por camada e seleção, então o slider só interpola e a prévia é ao vivo.
 
 **Fluxo recomendado (não destrutivo):**
 
